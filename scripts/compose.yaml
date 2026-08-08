@@ -8,16 +8,6 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-  localstack:
-    image: localstack/localstack:3.8.0
-    container_name: async_job_localstack
-    ports:
-      - "4566:4566"
-    environment:
-      - LS_LOG=debug
-    volumes:
-      - ./localstack_data:/var/lib/localstack
-      - ./init-aws.sh:/etc/localstack/init/ready.d/init-aws.sh
   
   web:
     build: .
@@ -28,8 +18,8 @@ services:
       - .env
     depends_on:
       - db
-      - localstack
-  
+    volumes:
+      - ~/.aws:/root/.aws:ro
   worker:
     build: .
     container_name: async_job_worker
@@ -38,7 +28,8 @@ services:
       - .env
     depends_on:
       - db
-      - localstack
+    volumes:
+      - ~/.aws:/root/.aws:ro
 
 volumes:
   postgres_data:

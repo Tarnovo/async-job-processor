@@ -1,13 +1,14 @@
-import database # This is a temporary solution. A different approach should be chosen for production.
+import app.core.database as database # This is a temporary solution. A different approach should be chosen for production.
 import os
 from dotenv import load_dotenv
 from fastapi import FastAPI, UploadFile
 import uuid
 import boto3
+from botocore.config import Config 
 from mypy_boto3_s3 import S3Client
 from mypy_boto3_sqs import SQSClient
 import json
-from models import (
+from app.core.models import (
     JobCreatedResponse,
     JobStatusResponse
 )
@@ -18,28 +19,29 @@ load_dotenv()  # Load environment variables from a .env file if present
 app = FastAPI()
 
 # Define the target S3 bucket name for raw CSV files
-BUCKET_NAME = "csv-upload-bucket"
+S3_BUCKET_NAME = os.getenv("S3_BUCKET_NAME")
+if S3_BUCKET_NAME is None:
+    raise ValueError("S3_BUCKET_NAME environment variable is not set. Please set it in your .env file or environment.")
 
-AWS_ENDPOINT = os.getenv("AWS_ENDPOINT_URL", "http://localstack:4566")
-QUEUE_URL = os.getenv("SQS_QUEUE_URL", "http://localstack:4566/000000000000/job-processing-queue")
+# Define the SQS queue URL for job processing.
+SQS_QUEUE_URL = os.getenv("SQS_QUEUE_URL")
+if SQS_QUEUE_URL is None:
+    raise ValueError("SQS_QUEUE_URL environment variable is not set. Please set it in your .env file or environment.")
 
 # Initialize the S3 client using boto3.
-s3_client: S3Client = boto3.client(
-    's3',
-    endpoint_url=AWS_ENDPOINT,
-    aws_access_key_id='test',
-    aws_secret_access_key='test',
-    region_name='us-east-1'
+s3_config = Config(
+    region_name=os.getenv("AWS_DEFAULT_REGION", "eu-central-1"),
+    signature_version='s3v4',
+    s3={
+        'addressing_style': 'virtual'
+    }
 )
 
+s3_client: S3Client = boto3.client('s3', config=s3_config)
+
 # Initialize the SQS client using boto3.
-sqs_client: SQSClient = boto3.client(
-    'sqs',
-    endpoint_url=AWS_ENDPOINT,
-    aws_access_key_id='test',
-    aws_secret_access_key='test',
-    region_name='us-east-1'
-)
+sqs_client: SQSClient = boto3.client('sqs')
+
 
 # Standard health check endpoint.
 # Crucial for AWS ALB and ECS to determine if the container is healthy.
@@ -84,12 +86,12 @@ async def upload_csv(file: UploadFile):
     
     # Using 'upload_fileobj' is memory-efficient because it streams the file chunks 
     # instead of loading the entire large CSV into RAM.
-    s3_client.upload_fileobj(file.file, BUCKET_NAME, s3_file_key)
+    s3_client.upload_fileobj(file.file, S3_BUCKET_NAME, s3_file_key)
 
 
-    # We pass only the S3 reference not the file content itself, bypassing SQS size limits (256 KB) and saving queue costs.
+    # We pass only the S3 reference not the file content itself, bypassing SQS size limits (1024 KiB) and saving queue costs.
     sqs_client.send_message(
-        QueueUrl=QUEUE_URL,
+        QueueUrl=SQS_QUEUE_URL,
         MessageBody=json.dumps({"job_id": new_job_id, "s3_key": s3_file_key})
     )
 
@@ -131,6 +133,19 @@ def get_job_status(job_id: str):
     # Unpack the job status information from the database query result.
     status, result_summary, invalid_rows_s3_key, updated_at = job
 
+    presigned_url = None
+    if invalid_rows_s3_key:
+        try:
+            # Generate a presigned URL for the invalid rows file in S3, allowing temporary access to the file without requiring AWS credentials.
+            presigned_url = s3_client.generate_presigned_url(
+                'get_object',
+                Params={'Bucket': S3_BUCKET_NAME, 'Key': invalid_rows_s3_key},
+                ExpiresIn=900  # URL expires in 15 minutes
+            )
+        except Exception as e:
+            presigned_url = None
+
+
     # If the job is completed, we return the full details including the result summary and presigned URL for invalid rows.
     if status == "COMPLETED":
         return JobStatusResponse(
@@ -138,7 +153,7 @@ def get_job_status(job_id: str):
             status=status,
             message="Job processed successfully.",
             result_summary=result_summary,
-            presigned_url=f"http://localhost:4566/csv-upload-bucket/{invalid_rows_s3_key}" if invalid_rows_s3_key else None,
+            presigned_url=presigned_url,
             updated_at=updated_at
         )
     

@@ -1,5 +1,10 @@
+.git
+.gitignore
 .venv
 __pycache__
-*.pyc
-.git
-.evn
+terraform/
+localstack_data/
+scripts/
+tests/
+*.md
+.env

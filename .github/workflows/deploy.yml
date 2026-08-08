@@ -1,0 +1,61 @@
+name: Deploy Async Job Platform to AWS ECS
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  AWS_REGION: eu-central-1
+  ECR_FASTAPI_REPO: ${vars.PROJECT_NAME}-fastapi
+  ECR_WORKER_REPO: ${vars.PROJECT_NAME}-worker
+  ECS_CLUSTER_NAME: ${vars.PROJECT_NAME}-ecs-cluster
+  ECS_FASTAPI_SERVICE: ${vars.PROJECT_NAME}-fastapi-service
+  ECS_WORKER_SERVICE: ${vars.PROJECT_NAME}-worker-service
+
+jobs:
+  deploy:
+    name: Build & Deploy to AWS ECS
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build & Push FastAPI Web Image to ECR
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -t $ECR_REGISTRY/$ECR_FASTAPI_REPO:$IMAGE_TAG -t $ECR_REGISTRY/$ECR_FASTAPI_REPO:latest -f app/fastapi/Dockerfile .
+          docker push $ECR_REGISTRY/$ECR_FASTAPI_REPO:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_FASTAPI_REPO:latest      
+       
+      - name: Build & Push Worker Image to ECR
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -t $ECR_REGISTRY/$ECR_WORKER_REPO:$IMAGE_TAG -t $ECR_REGISTRY/$ECR_WORKER_REPO:latest -f app/worker/Dockerfile .
+          docker push $ECR_REGISTRY/$ECR_WORKER_REPO:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_WORKER_REPO:latest
+      
+      # Update Fargate Services with New Image (Zero-Downtime Deployment)
+      - name: Deploy to AWS ECS
+        run: |
+          aws ecs update-service --cluster $ECS_CLUSTER_NAME --service $ECS_FASTAPI_SERVICE --force-new-deployment
+          aws ecs update-service --cluster $ECS_CLUSTER_NAME --service $ECS_WORKER_SERVICE --force-new-deployment

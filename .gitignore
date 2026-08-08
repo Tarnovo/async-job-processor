@@ -1,0 +1,28 @@
+# Terraform Local State & Variable Files
+*.tfstate
+*.tfstate.*
+.terraform/
+*.tfvars
+
+# Environments & Secrets
+.env
+.env.*
+
+# Python & Virtual Environments
+.venv/
+env/
+venv/
+ENV/
+__pycache__/
+*.pyc
+pyvenv.cfg
+
+# Docker & Local Infrastructure Data
+localstack_data/
+
+# IDE & OS Files
+.vscode/
+.idea/
+.DS_Store
+stress_test_10k.csv
+

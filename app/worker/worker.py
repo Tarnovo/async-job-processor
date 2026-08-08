@@ -5,39 +5,32 @@ from dotenv import load_dotenv
 from mypy_boto3_s3 import S3Client
 from mypy_boto3_sqs import SQSClient
 import json
-from employee_processor import process_csv
+from app.worker.employee_processor import process_csv
 import io
 import psycopg2
 import os
 
+
 # Standard practice to load environment variables from a .env file, especially for sensitive information like database credentials.
 load_dotenv()
 
-AWS_ENDPOINT = os.getenv("AWS_ENDPOINT_URL", "http://localstack:4566")
-QUEUE_URL = os.getenv("SQS_QUEUE_URL", "http://localstack:4566/000000000000/job-processing-queue")
+S3_BUCKET_NAME = os.getenv("S3_BUCKET_NAME")
+if S3_BUCKET_NAME is None:
+    raise ValueError("S3_BUCKET_NAME environment variable is not set. Please set it in your .env file or environment.")
 
-s3_client: S3Client = boto3.client(
-    's3',
-    endpoint_url=AWS_ENDPOINT,
-    aws_access_key_id='test',
-    aws_secret_access_key='test',
-    region_name='us-east-1'
-)
+SQS_QUEUE_URL = os.getenv("SQS_QUEUE_URL")
+if SQS_QUEUE_URL is None:
+    raise ValueError("SQS_QUEUE_URL environment variable is not set. Please set it in your .env file or environment.")
 
-sqs_client: SQSClient = boto3.client(
-    'sqs',
-    endpoint_url=AWS_ENDPOINT,
-    aws_access_key_id='test',
-    aws_secret_access_key='test',
-    region_name='us-east-1'
-)
+s3_client: S3Client = boto3.client('s3')
+sqs_client: SQSClient = boto3.client('sqs')
 
 
 # We start an infinite loop so that the worker can listen continuously.
 while True:
     try:
         messages = sqs_client.receive_message(
-            QueueUrl=QUEUE_URL,
+            QueueUrl=SQS_QUEUE_URL,
             MaxNumberOfMessages=1,
             WaitTimeSeconds=20 # Long polling to reduce empty responses and costs, as the worker will wait up to 20 seconds for a message to arrive before returning.
         )   
@@ -64,7 +57,7 @@ while True:
 
         # We retrieve the CSV file from S3 using the provided key. 
         s3_response = s3_client.get_object(
-            Bucket="csv-upload-bucket",
+            Bucket=S3_BUCKET_NAME, 
             Key=s3_key
         )
 
@@ -82,7 +75,7 @@ while True:
             invalid_rows_list = full_dict["invalid_rows"]
             
             s3_put = s3_client.put_object(
-                Bucket="csv-upload-bucket",
+                Bucket=S3_BUCKET_NAME,
                 Key=f"results/{job_id}_invalid_rows.json",
                 Body=json.dumps(invalid_rows_list).encode('utf-8')
             )
@@ -118,9 +111,10 @@ while True:
             connection.close()
             print(f"Job completed successfully!: {job_id} Summary: {summary_dict}")
 
-            # We delete the message from the SQS queue after successfully processing the job and updating the database. This prevents the same job from being processed multiple times.
+            # We delete the message from the SQS queue after successfully processing the job.
+            # This part might not work correctly in practice, so it will be changed.
             sqs_client.delete_message(
-                QueueUrl=QUEUE_URL,
+                QueueUrl=SQS_QUEUE_URL,
                 ReceiptHandle=receipt_handle
             )
             print(f"Message deleted from SQS: {job_id}")
