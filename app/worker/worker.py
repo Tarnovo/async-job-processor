@@ -7,7 +7,7 @@ from mypy_boto3_sqs import SQSClient
 import json
 from app.worker.employee_processor import process_csv
 import io
-import psycopg2
+from app.core.database import get_db_connection
 import os
 
 
@@ -55,41 +55,49 @@ while True:
         
         print(f"Processing... {job_id} S3 key: {s3_key}")
 
-        # We retrieve the CSV file from S3 using the provided key. 
-        s3_response = s3_client.get_object(
-            Bucket=S3_BUCKET_NAME, 
-            Key=s3_key
-        )
-
-        # We read the raw bytes from the S3 response and wrap them in a BytesIO object, which allows us to treat the bytes as a file-like object. This is necessary because the process_csv function expects a file-like object as input.
-        raw_bytes = s3_response['Body'].read()
-        csv_file_obj = io.BytesIO(raw_bytes)
-        result = process_csv(csv_file_obj)
-
-        # We convert the summary of the CSV processing result into a dictionary format, which is suitable for storage in the database. This summary includes counts of valid rows, underage rows, and invalid rows, providing a concise overview of the CSV processing outcome.
-        summary_dict = result.summary.model_dump()
-
-        # We save the invalid rows to S3 and update the job status in the database.
         try:
+            conn = get_db_connection()
+            cur = conn.cursor()
+            cur.execute(
+                "UPDATE jobs SET status = %s, updated_at = CURRENT_TIMESTAMP WHERE job_id = %s",
+                ('PROCESSING', job_id)
+            )
+            conn.commit()
+            cur.close()
+            conn.close()
+        except Exception as db_err:
+            print(f"Failed to set status to PROCESSING for {job_id}: {db_err}")
+
+        try:
+            # We retrieve the CSV file from S3 using the provided key. 
+            s3_response = s3_client.get_object(
+                Bucket=S3_BUCKET_NAME, 
+                Key=s3_key
+            )
+
+            # We read the raw bytes from the S3 response and wrap them in a BytesIO object, which allows us to treat the bytes as a file-like object. This is necessary because the process_csv function expects a file-like object as input.
+            raw_bytes = s3_response['Body'].read()
+            csv_file_obj = io.BytesIO(raw_bytes)
+            result = process_csv(csv_file_obj)
+
+            # We convert the summary of the CSV processing result into a dictionary format, which is suitable for storage in the database. This summary includes counts of valid rows, underage rows, and invalid rows, providing a concise overview of the CSV processing outcome.
+            summary_dict = result.summary.model_dump()
+
+            # We save the invalid rows to S3 and update the job status in the database.
             full_dict = result.model_dump()
             invalid_rows_list = full_dict["invalid_rows"]
+            invalid_s3_key = f"results/{job_id}_invalid_rows.json"
             
             s3_put = s3_client.put_object(
                 Bucket=S3_BUCKET_NAME,
-                Key=f"results/{job_id}_invalid_rows.json",
+                Key=invalid_s3_key,
                 Body=json.dumps(invalid_rows_list).encode('utf-8')
             )
             print(f"Invalid rows saved to S3: {job_id}_invalid_rows.json")
 
             # We connect to the PostgreSQL database using credentials from environment variables. This connection allows us to execute SQL commands to update the job status and store the processing results.
-            connection = psycopg2.connect(
-                host=os.getenv("POSTGRES_HOST", "localhost"),
-                database=os.getenv("POSTGRES_DB"),
-                user=os.getenv("POSTGRES_USER"),
-                password=os.getenv("POSTGRES_PASSWORD"),
-                port=os.getenv("POSTGRES_PORT", "5432")
-            )
-            cur = connection.cursor()
+            conn = get_db_connection()
+            cur = conn.cursor()
             cur.execute(
                 """
                 UPDATE jobs 
@@ -97,18 +105,14 @@ while True:
                     result_summary = %s,
                     invalid_rows_s3_key = %s,  
                     updated_at = CURRENT_TIMESTAMP                   
-                WHERE job_id = %s
+                 WHERE job_id = %s
                 """,
-                (
-                    'COMPLETED', 
-                    json.dumps(summary_dict), 
-                    f"results/{job_id}_invalid_rows.json", 
-                    job_id             
-                )
+                ('COMPLETED', json.dumps(summary_dict), invalid_s3_key, job_id)
             )
-            connection.commit()
+            conn.commit()
             cur.close()
-            connection.close()
+            conn.close()
+
             print(f"Job completed successfully!: {job_id} Summary: {summary_dict}")
 
             # We delete the message from the SQS queue after successfully processing the job.
@@ -117,10 +121,26 @@ while True:
                 QueueUrl=SQS_QUEUE_URL,
                 ReceiptHandle=receipt_handle
             )
-            print(f"Message deleted from SQS: {job_id}")
+            print(f"Message deleted from SQS: {job_id}")    
         
         except Exception as e:
-            print(f"Failed to update job status in database: {e}")
+            print(f"Job processing failed for {job_id}: {e}")
+
+            try:
+                conn = get_db_connection()
+                cur = conn.cursor()
+                cur.execute(
+                    "UPDATE jobs SET status = %s, updated_at = CURRENT_TIMESTAMP WHERE job_id = %s",
+                    ('FAILED', job_id)
+                )
+                conn.commit()
+                cur.close()
+                conn.close()
+                print(f"Job status updated to FAILED for: {job_id}")
+
+            except Exception as db_fail_err:
+                print(f"Critical: Failed to update job status to FAILED in DB: {db_fail_err}")
+
         
         
 

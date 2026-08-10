@@ -1,8 +1,11 @@
 import psycopg2
 import os
+import logging
 from dotenv import load_dotenv
 
 load_dotenv()
+
+logger = logging.getLogger(__name__)
 
 CREATE_TABLE_SQL = """
 CREATE TABLE IF NOT EXISTS jobs (
@@ -17,8 +20,9 @@ ALTER TABLE jobs ADD COLUMN IF NOT EXISTS invalid_rows_s3_key VARCHAR(255);
 
 """
 
-try:
-    connection = psycopg2.connect(
+def get_db_connection():
+
+    return psycopg2.connect(
         host=os.getenv("POSTGRES_HOST", "localhost"),
         database=os.getenv("POSTGRES_DB"),
         user=os.getenv("POSTGRES_USER"),
@@ -26,13 +30,16 @@ try:
         port=os.getenv("POSTGRES_PORT", "5432")
     )
 
-    cur = connection.cursor()
-    cur.execute(CREATE_TABLE_SQL)
-    connection.commit()
 
-    print("Database connection successful!")
-    cur.close()
-    connection.close()
- 
-except Exception as e:
-    print(f"Database connection failed: {e}")
+def init_db():
+    try:
+        connection = get_db_connection()
+        cursor = connection.cursor()
+        cursor.execute(CREATE_TABLE_SQL)
+        connection.commit()
+        cursor.close()
+        connection.close()
+        logger.info("Database initialized successfully.")
+    except Exception as e:
+        logger.error(f"Error initializing database: {e}")
+        raise e

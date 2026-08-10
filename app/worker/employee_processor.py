@@ -32,7 +32,7 @@ def validate(row: dict[str, str]) -> str:
         
         return "valid"
 
-    except ValueError:
+    except (ValueError, KeyError):
         return "invalid_value"
 
 

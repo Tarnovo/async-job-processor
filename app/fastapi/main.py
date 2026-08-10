@@ -1,7 +1,8 @@
-import app.core.database as database # This is a temporary solution. A different approach should be chosen for production.
+from app.core.database import get_db_connection, init_db
+from contextlib import asynccontextmanager
 import os
 from dotenv import load_dotenv
-from fastapi import FastAPI, UploadFile
+from fastapi import FastAPI, UploadFile, HTTPException
 import uuid
 import boto3
 from botocore.config import Config 
@@ -15,8 +16,13 @@ from app.core.models import (
 
 load_dotenv()  # Load environment variables from a .env file if present
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    init_db()
+    yield
+
 # Initialize the FastAPI application instance
-app = FastAPI()
+app = FastAPI(title="Async Job Platform API", lifespan=lifespan)
 
 # Define the target S3 bucket name for raw CSV files
 S3_BUCKET_NAME = os.getenv("S3_BUCKET_NAME")
@@ -59,42 +65,34 @@ async def upload_csv(file: UploadFile):
     new_job_id = str(uuid.uuid4())
     s3_file_key = f"{new_job_id}.csv"
     
-    import psycopg2
-    from fastapi import HTTPException
-    
     # We connect to the PostgreSQL database using credentials from environment variables. This connection allows us to execute SQL commands to insert a new job record with a "PENDING" status.
     try:
-        connection = psycopg2.connect(
-            host=os.getenv("POSTGRES_HOST", "localhost"),
-            database=os.getenv("POSTGRES_DB"),
-            user=os.getenv("POSTGRES_USER"),
-            password=os.getenv("POSTGRES_PASSWORD"),
-            port=os.getenv("POSTGRES_PORT", "5432")
-        )
-        cur = connection.cursor()
+        # Using 'upload_fileobj' is memory-efficient because it streams the file chunks 
+        # instead of loading the entire large CSV into RAM.
+        s3_client.upload_fileobj(file.file, S3_BUCKET_NAME, s3_file_key)
+
+        conn = get_db_connection()
+        cur = conn.cursor()
         cur.execute(
             "INSERT INTO jobs (job_id, status) VALUES (%s, %s)",
             (new_job_id, "PENDING")
         )
-        connection.commit()
+        conn.commit()
         cur.close()
-        connection.close()
-    
+        conn.close()
+
+        # We pass only the S3 reference not the file content itself, bypassing SQS size limits (1024 KiB) and saving queue costs.   
+        sqs_client.send_message(
+            QueueUrl=SQS_QUEUE_URL,
+            MessageBody=json.dumps({"job_id": new_job_id, "s3_key": s3_file_key})
+        )
+
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Failed to process upload request: {str(e)}"
+        )
     
-    
-    # Using 'upload_fileobj' is memory-efficient because it streams the file chunks 
-    # instead of loading the entire large CSV into RAM.
-    s3_client.upload_fileobj(file.file, S3_BUCKET_NAME, s3_file_key)
-
-
-    # We pass only the S3 reference not the file content itself, bypassing SQS size limits (1024 KiB) and saving queue costs.
-    sqs_client.send_message(
-        QueueUrl=SQS_QUEUE_URL,
-        MessageBody=json.dumps({"job_id": new_job_id, "s3_key": s3_file_key})
-    )
-
     
     return JobCreatedResponse(
         job_id=new_job_id, 
@@ -105,24 +103,17 @@ async def upload_csv(file: UploadFile):
 # Endpoint to check the status of a job by its ID.
 @app.get("/jobs/{job_id}", response_model=JobStatusResponse)
 def get_job_status(job_id: str):
-    import psycopg2
-    from fastapi import HTTPException
+
     try:
-        connection = psycopg2.connect(
-        host=os.getenv("POSTGRES_HOST", "localhost"),
-        database=os.getenv("POSTGRES_DB"),
-        user=os.getenv("POSTGRES_USER"),
-        password=os.getenv("POSTGRES_PASSWORD"),
-        port=os.getenv("POSTGRES_PORT", "5432")
-        )
-        cur = connection.cursor()
+        conn = get_db_connection()
+        cur = conn.cursor()
         cur.execute(
             "SELECT status, result_summary, invalid_rows_s3_key, updated_at FROM jobs WHERE job_id = %s",
             (job_id,)
         )
-        job = cur.fetchone() # Fetch the first row of the result set, which contains the job status information.
+        job = cur.fetchone()
         cur.close()
-        connection.close()
+        conn.close()
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
@@ -156,13 +147,36 @@ def get_job_status(job_id: str):
             presigned_url=presigned_url,
             updated_at=updated_at
         )
-    
-    # For jobs that are still pending or in progress, we return a message indicating that the job is not yet completed, without the result summary or presigned URL.
-    return JobStatusResponse(
-        job_id=job_id,
-        status=status,
-        message="Job is still in progress. Please check again later.",
-        result_summary=None,
-        presigned_url=None,
-        updated_at=None
-    )
+
+    # If the job is failed...
+    if status == "FAILED":
+        return JobStatusResponse(
+            job_id=job_id,
+            status=status,
+            message="Job processing failed. Please check the logs or upload again.",
+            result_summary=None,
+            presigned_url=None,
+            updated_at=updated_at
+        )
+
+    # If the job hasn't been picked up by the worker yet (waiting in the SQS queue)
+    if status == "PENDING":
+        return JobStatusResponse(
+            job_id=job_id,
+            status=status,
+            message="Job is pending in the queue. Processing has not started yet.",
+            result_summary=None,
+            presigned_url=None,
+            updated_at=updated_at
+        )
+
+    # If the job was picked up by the worker and is actively being processed
+    if status == "PROCESSING":
+        return JobStatusResponse(
+            job_id=job_id,
+            status=status,
+            message="Job is currently being processed by the worker.",
+            result_summary=None,
+            presigned_url=None,
+            updated_at=updated_at
+        )
