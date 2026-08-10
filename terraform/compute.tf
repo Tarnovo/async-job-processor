@@ -487,7 +487,8 @@ resource "aws_iam_policy" "github_actions_policy" {
           "ecr:InitiateLayerUpload",
           "ecr:PutImage",
           "ecr:UploadLayerPart",
-          "ecr:BatchGetImage"
+          "ecr:BatchGetImage",
+          "ecr:UpdateService"
         ]
         Resource = [
           aws_ecr_repository.fastapi.arn,
