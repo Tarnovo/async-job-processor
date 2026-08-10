@@ -37,6 +37,23 @@ resource "aws_s3_bucket" "csv_bucket" {
   }
 }
 
+resource "aws_s3_bucket_lifecycle_configuration" "job_bucket_lifecycle" {
+  bucket = aws_s3_bucket.csv_bucket.id
+
+  rule {
+    id     = "delete_old_and_orphaned_csv_files"
+    status = "Enabled"
+
+    filter {
+      prefix = ""
+    }
+
+    expiration {
+      days = 1
+    }
+  }
+}
+
 resource "aws_sqs_queue" "job_dlq" {
   name                      = "async-job-dlq-${random_pet.bucket_suffix.id}"
   message_retention_seconds = 1209600 # 14 days

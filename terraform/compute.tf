@@ -203,8 +203,24 @@ resource "aws_ecs_task_definition" "fastapi_task" {
 
       secrets = [
         {
-          name      = "DATABASE_URL"
-          valueFrom = aws_secretsmanager_secret.db_credentials.arn
+          name      = "POSTGRES_USER"
+          valueFrom = "${aws_secretsmanager_secret.db_credentials.arn}:username::"
+        },
+        {
+          name      = "POSTGRES_PASSWORD"
+          valueFrom = "${aws_secretsmanager_secret.db_credentials.arn}:password::"
+        },
+        {
+          name      = "POSTGRES_HOST"
+          valueFrom = "${aws_secretsmanager_secret.db_credentials.arn}:host::"
+        },
+        {
+          name      = "POSTGRES_PORT"
+          valueFrom = "${aws_secretsmanager_secret.db_credentials.arn}:port::"
+        },
+        {
+          name      = "POSTGRES_DB"
+          valueFrom = "${aws_secretsmanager_secret.db_credentials.arn}:dbname::"
         }
       ]
 
@@ -250,8 +266,24 @@ resource "aws_ecs_task_definition" "worker_task" {
 
       secrets = [
         {
-          name      = "DATABASE_URL"
-          valueFrom = aws_secretsmanager_secret.db_credentials.arn
+          name      = "POSTGRES_USER"
+          valueFrom = "${aws_secretsmanager_secret.db_credentials.arn}:username::"
+        },
+        {
+          name      = "POSTGRES_PASSWORD"
+          valueFrom = "${aws_secretsmanager_secret.db_credentials.arn}:password::"
+        },
+        {
+          name      = "POSTGRES_HOST"
+          valueFrom = "${aws_secretsmanager_secret.db_credentials.arn}:host::"
+        },
+        {
+          name      = "POSTGRES_PORT"
+          valueFrom = "${aws_secretsmanager_secret.db_credentials.arn}:port::"
+        },
+        {
+          name      = "POSTGRES_DB"
+          valueFrom = "${aws_secretsmanager_secret.db_credentials.arn}:dbname::"
         }
       ]
 
