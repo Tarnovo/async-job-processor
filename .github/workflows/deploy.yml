@@ -11,11 +11,11 @@ permissions:
 
 env:
   AWS_REGION: eu-central-1
-  ECR_FASTAPI_REPO: ${vars.PROJECT_NAME}-fastapi
-  ECR_WORKER_REPO: ${vars.PROJECT_NAME}-worker
-  ECS_CLUSTER_NAME: ${vars.PROJECT_NAME}-ecs-cluster
-  ECS_FASTAPI_SERVICE: ${vars.PROJECT_NAME}-fastapi-service
-  ECS_WORKER_SERVICE: ${vars.PROJECT_NAME}-worker-service
+  ECR_FASTAPI_REPO: ${{ vars.PROJECT_NAME }}-fastapi
+  ECR_WORKER_REPO: ${{ vars.PROJECT_NAME }}-worker
+  ECS_CLUSTER_NAME: ${{ vars.PROJECT_NAME }}-ecs-cluster
+  ECS_FASTAPI_SERVICE: ${{ vars.PROJECT_NAME }}-fastapi-service
+  ECS_WORKER_SERVICE: ${{ vars.PROJECT_NAME }}-worker-service
 
 jobs:
   deploy:
