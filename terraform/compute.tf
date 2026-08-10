@@ -487,12 +487,22 @@ resource "aws_iam_policy" "github_actions_policy" {
           "ecr:InitiateLayerUpload",
           "ecr:PutImage",
           "ecr:UploadLayerPart",
-          "ecr:BatchGetImage",
-          "ecr:UpdateService"
+          "ecr:BatchGetImage"
         ]
         Resource = [
           aws_ecr_repository.fastapi.arn,
           aws_ecr_repository.worker.arn
+        ]
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "ecs:UpdateService",
+          "ecs:DescribeServices"
+        ]
+        Resource = [
+          aws_ecs_service.fastapi_service.id,
+          aws_ecs_service.worker_service.id
         ]
       }
     ]
