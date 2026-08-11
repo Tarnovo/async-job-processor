@@ -29,6 +29,11 @@ resource "aws_cloudfront_origin_access_control" "frontend_oac" {
   signing_protocol                  = "sigv4"
 }
 
+# AWS Managed "CachingOptimized" Policy
+data "aws_cloudfront_cache_policy" "caching_optimized" {
+  name = "Managed-CachingOptimized"
+}
+
 # CloudFront Distribution (CDN)
 resource "aws_cloudfront_distribution" "frontend_cdn" {
   enabled             = true
@@ -48,7 +53,7 @@ resource "aws_cloudfront_distribution" "frontend_cdn" {
     target_origin_id = "S3-${aws_s3_bucket.frontend_bucket.id}"
 
 
-    cache_policy_id = "65832739-464e-4112-99d6-567da920e654"
+    cache_policy_id = data.aws_cloudfront_cache_policy.caching_optimized.id
 
     viewer_protocol_policy = "redirect-to-https"
     compress               = true

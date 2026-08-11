@@ -26,12 +26,18 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Async Job Platform API", lifespan=lifespan)
 
 # Allow Cross-Origin Resource Sharing for Frontend
+FRONTEND_DOMAIN = os.getenv("FRONTEND_DOMAIN")
+if not FRONTEND_DOMAIN:
+    raise RuntimeError("CRITICAL: 'FRONTEND_DOMAIN' environment variable is not defined.")
+
+allowed_origins = [FRONTEND_DOMAIN]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[""],
+    allow_origins=allowed_origins,
     allow_credentials=True,
-    allow_methods=[""],
-    allow_headers=[""]
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"]
 )
 
 # Define the target S3 bucket name for raw CSV files
@@ -77,6 +83,9 @@ async def upload_csv(file: UploadFile):
     
     # We connect to the PostgreSQL database using credentials from environment variables. This connection allows us to execute SQL commands to insert a new job record with a "PENDING" status.
     try:
+        if not file.filename or not file.filename.endswith(".csv"):
+            raise HTTPException(status_code=400, detail="Only CSV files are allowed.")
+
         # Using 'upload_fileobj' is memory-efficient because it streams the file chunks 
         # instead of loading the entire large CSV into RAM.
         s3_client.upload_fileobj(file.file, S3_BUCKET_NAME, s3_file_key)

@@ -232,6 +232,10 @@ resource "aws_ecs_task_definition" "fastapi_task" {
         {
           name  = "SQS_QUEUE_URL"
           value = aws_sqs_queue.job_queue.url
+        },
+        {
+          name  = "FRONTEND_DOMAIN"
+          value = "https://${aws_cloudfront_distribution.frontend_cdn.domain_name}"
         }
       ]
 
