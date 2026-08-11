@@ -19,6 +19,17 @@ resource "aws_s3_bucket_public_access_block" "frontend_bucket_privacy" {
   restrict_public_buckets = true
 }
 
+# S3 Bucket Encryption
+resource "aws_s3_bucket_server_side_encryption_configuration" "frontend_bucket_encryption" {
+  bucket = aws_s3_bucket.frontend_bucket.id
+
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"
+    }
+  }
+}
+
 # CloudFront Origin Access Control (OAC)
 # Allows CloudFront to securely access objects inside the private S3 bucket.
 resource "aws_cloudfront_origin_access_control" "frontend_oac" {

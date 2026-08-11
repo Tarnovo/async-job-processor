@@ -31,7 +31,7 @@ resource "aws_s3_bucket" "csv_bucket" {
   force_destroy = true
 
   tags = {
-    Environment = "Dev"
+    Environment = "production"
     Project     = "AsyncCSVProcessor"
     ManagedBy   = "Terraform"
   }
@@ -54,12 +54,23 @@ resource "aws_s3_bucket_lifecycle_configuration" "job_bucket_lifecycle" {
   }
 }
 
+# CSV Bucket Encryption
+resource "aws_s3_bucket_server_side_encryption_configuration" "csv_bucket_encryption" {
+  bucket = aws_s3_bucket.csv_bucket.id
+
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"
+    }
+  }
+}
+
 resource "aws_sqs_queue" "job_dlq" {
   name                      = "async-job-dlq-${random_pet.bucket_suffix.id}"
   message_retention_seconds = 1209600 # 14 days
 
   tags = {
-    Environment = "Dev"
+    Environment = "production"
     Project     = "AsyncCSVProcessor"
     ManagedBy   = "Terraform"
   }
@@ -75,7 +86,7 @@ resource "aws_sqs_queue" "job_queue" {
   })
 
   tags = {
-    Environment = "Dev"
+    Environment = "production"
     Project     = "AsyncCSVProcessor"
     ManagedBy   = "Terraform"
   }
@@ -85,7 +96,7 @@ resource "aws_sns_topic" "queue_alerts" {
   name = "async-job-alerts-${random_pet.bucket_suffix.id}"
 
   tags = {
-    Environment = "Dev"
+    Environment = "production"
     Project     = "AsyncCSVProcessor"
     ManagedBy   = "Terraform"
   }
@@ -115,7 +126,7 @@ resource "aws_cloudwatch_metric_alarm" "sqs_dlq_alarm" {
   }
 
   tags = {
-    Environment = "Dev"
+    Environment = "production"
     Project     = "AsyncCSVProcessor"
     ManagedBy   = "Terraform"
   }

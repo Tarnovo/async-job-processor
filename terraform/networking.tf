@@ -114,21 +114,21 @@ resource "aws_route_table_association" "private_2" {
   route_table_id = aws_route_table.private.id
 }
 
-# Security Group for VPC Endpoints
-resource "aws_security_group" "vpc_endpoint_sqs" {
-  name        = "${var.project_name}-vpc-endpoint-sqs"
-  description = "Security group for SQS VPC endpoint"
+# Security Group for Interface Endpoints
+resource "aws_security_group" "vpc_interface_endpoints_sg" {
+  name        = "${var.project_name}-vpc-interface-endpoints-sg"
+  description = "Security group for Interface Endpoints"
   vpc_id      = aws_vpc.main.id
 
   ingress {
-    from_port   = 443
-    to_port     = 443
-    protocol    = "tcp"
-    cidr_blocks = [aws_vpc.main.cidr_block]
+    from_port       = 443
+    to_port         = 443
+    protocol        = "tcp"
+    security_groups = [aws_security_group.ecs_task_sg.id]
   }
 
   tags = {
-    Name = "${var.project_name}-vpc-endpoint-sqs"
+    Name = "${var.project_name}-vpc-interface-endpoints-sg"
   }
 }
 
@@ -156,11 +156,26 @@ resource "aws_vpc_endpoint" "sqs" {
     aws_subnet.private_2.id
   ]
 
-  security_group_ids = [aws_security_group.vpc_endpoint_sqs.id]
+  security_group_ids = [aws_security_group.vpc_interface_endpoints_sg.id]
 
   private_dns_enabled = true
 
   tags = {
     Name = "${var.project_name}-sqs-endpoint"
+  }
+}
+
+# AWS Secret Manager Interface Endpoint
+resource "aws_vpc_endpoint" "secretsmanager" {
+  vpc_id              = aws_vpc.main.id
+  service_name        = "com.amazonaws.${var.region}.secretsmanager"
+  vpc_endpoint_type   = "Interface"
+  security_group_ids  = [aws_security_group.vpc_interface_endpoints_sg.id]
+  subnet_ids          = [aws_subnet.private_1.id, aws_subnet.private_2.id]
+  private_dns_enabled = true
+
+  tags = {
+    Name        = "${var.project_name}-secretsmanager-endpoint"
+    Environment = "production"
   }
 }

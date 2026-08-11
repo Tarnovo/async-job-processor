@@ -4,7 +4,7 @@ resource "aws_db_subnet_group" "main" {
   subnet_ids = [aws_subnet.private_1.id, aws_subnet.private_2.id]
 
   tags = {
-    name = "${var.project_name}-db-subnet-group"
+    Name = "${var.project_name}-db-subnet-group"
   }
 }
 
@@ -15,14 +15,14 @@ resource "aws_security_group" "rds_sg" {
   vpc_id      = aws_vpc.main.id
 
   ingress {
-    from_port   = 5432
-    to_port     = 5432
-    protocol    = "tcp"
-    cidr_blocks = [aws_vpc.main.cidr_block]
+    from_port       = 5432
+    to_port         = 5432
+    protocol        = "tcp"
+    security_groups = [aws_security_group.ecs_task_sg.id]
   }
 
   tags = {
-    name = "${var.project_name}-rds-sg"
+    Name = "${var.project_name}-rds-sg"
   }
 }
 
@@ -30,7 +30,7 @@ resource "aws_security_group" "rds_sg" {
 resource "random_password" "db_password" {
   length           = 16
   special          = true
-  override_special = "!#$%&*()-_=+[]{}<>:?"
+  override_special = "!#$%&*()-_=+[]{}?"
 
 }
 
@@ -40,7 +40,7 @@ resource "aws_secretsmanager_secret" "db_credentials" {
   recovery_window_in_days = 0
 
   tags = {
-    name = "${var.project_name}-db-credentials"
+    Name = "${var.project_name}-db-credentials"
   }
 }
 
@@ -65,6 +65,7 @@ resource "aws_db_instance" "postgres" {
   engine                = "postgres"
   engine_version        = "15"
   instance_class        = "db.t4g.micro"
+  storage_encrypted     = true
 
   db_name  = "async_job_db"
   username = var.db_username
@@ -77,6 +78,6 @@ resource "aws_db_instance" "postgres" {
   skip_final_snapshot = true
 
   tags = {
-    name = "${var.project_name}-postgres"
+    Name = "${var.project_name}-postgres"
   }
 }

@@ -1,7 +1,6 @@
 variable "alert_email" {
   description = "Email address to send alerts to"
   type        = string
-  sensitive   = true
 }
 
 variable "project_name" {
@@ -17,6 +16,7 @@ variable "region" {
 variable "db_username" {
   description = "Username for the RDS database"
   type        = string
+  sensitive   = true
 }
 
 variable "github_repo" {

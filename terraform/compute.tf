@@ -13,6 +13,42 @@ resource "aws_ecr_repository" "fastapi" {
   }
 }
 
+# ECR Lifecycle Policy for FastAPI
+resource "aws_ecr_lifecycle_policy" "fastapi_lifecycle_policy" {
+  repository = aws_ecr_repository.fastapi.name
+
+  policy = jsonencode({
+    rules = [
+      {
+        rulePriority = 1
+        description  = "Keep last 3 tagged images regardless of tag prefix"
+        selection = {
+          tagStatus      = "tagged"
+          tagPatternList = ["*"]
+          countType      = "imageCountMoreThan"
+          countNumber    = 3
+        }
+        action = {
+          type = "expire"
+        }
+      },
+      {
+        rulePriority = 2
+        description  = "Expire untagged images immediately"
+        selection = {
+          tagStatus   = "untagged"
+          countType   = "sinceImagePushed"
+          countUnit   = "days"
+          countNumber = 1
+        }
+        action = {
+          type = "expire"
+        }
+      }
+    ]
+  })
+}
+
 # ECR Repository for Worker
 resource "aws_ecr_repository" "worker" {
   name                 = "${var.project_name}-worker"
@@ -25,6 +61,42 @@ resource "aws_ecr_repository" "worker" {
   tags = {
     Name = "${var.project_name}-worker-ecr"
   }
+}
+
+# ECR Lifecycle Policy for Worker
+resource "aws_ecr_lifecycle_policy" "worker_lifecycle_policy" {
+  repository = aws_ecr_repository.worker.name
+
+  policy = jsonencode({
+    rules = [
+      {
+        rulePriority = 1
+        description  = "Keep last 3 tagged images regardless of tag prefix"
+        selection = {
+          tagStatus      = "tagged"
+          tagPatternList = ["*"]
+          countType      = "imageCountMoreThan"
+          countNumber    = 3
+        }
+        action = {
+          type = "expire"
+        }
+      },
+      {
+        rulePriority = 2
+        description  = "Expire untagged images immediately"
+        selection = {
+          tagStatus   = "untagged"
+          countType   = "sinceImagePushed"
+          countUnit   = "days"
+          countNumber = 1
+        }
+        action = {
+          type = "expire"
+        }
+      }
+    ]
+  })
 }
 
 # ECS Cluster
@@ -73,7 +145,7 @@ resource "aws_iam_policy" "secrets_read_policy" {
       {
         Action   = ["secretsmanager:GetSecretValue"]
         Effect   = "Allow"
-        Resource = "*"
+        Resource = "${aws_secretsmanager_secret.db_credentials.arn}"
       }
     ]
   })
@@ -159,10 +231,10 @@ resource "aws_security_group" "ecs_task_sg" {
   vpc_id      = aws_vpc.main.id
 
   ingress {
-    from_port   = 8000
-    to_port     = 8000
-    protocol    = "tcp"
-    cidr_blocks = [aws_vpc.main.cidr_block]
+    from_port       = 8000
+    to_port         = 8000
+    protocol        = "tcp"
+    security_groups = [aws_security_group.alb_sg.id]
   }
 
   egress {
