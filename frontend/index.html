@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Async CSV Job Processing Platform</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Async CSV Processing Platform</h1>
+        <p class="subtitle">Upload your large CSV files for asynchronous background processing.</p>
+
+        <!-- 1. FILE UPLOAD SECTION -->
+        <section class="card">
+            <h2>1. Upload CSV File</h2>
+            <form id="upload-form">
+                <div class="file-input-wrapper">
+                    <input type="file" id="csv-file" accept=".csv" required>
+                </div>
+                <button type="submit" id="upload-btn">Upload & Submit Job</button>
+            </form>
+        </section>
+
+        <!-- 2. LIVE STATUS TRACKING SECTION -->
+        <section class="card" id="status-card" style="display: none;">
+            <h2>2. Job Execution Status</h2>
+            <div class="status-info">
+                <p><strong>Job ID:</strong> <span id="job-id-display">-</span></p>
+                <p><strong>Status:</strong> <span id="job-status" class="badge">PENDING</span></p>
+                <p id="job-message" class="message-text"></p>
+            </div>
+
+            <!-- Loading Indicator -->
+            <div id="loading-spinner" class="spinner"></div>
+
+            <!-- 3. RESULTS AND SUMMARY SECTION -->
+            <div id="result-section" style="display: none;">
+                <h3>Execution Summary</h3>
+                <div class="summary-grid">
+                    <div class="summary-box valid">
+                        <span class="count" id="count-valid">0</span>
+                        <span class="label">Valid Records</span>
+                    </div>
+                    <div class="summary-box underage">
+                        <span class="count" id="count-underage">0</span>
+                        <span class="label">Underage (&lt;18)</span>
+                    </div>
+                    <div class="summary-box invalid">
+                        <span class="count" id="count-invalid">0</span>
+                        <span class="label">Invalid Values</span>
+                    </div>
+                </div>
+
+                <div id="download-box" style="display: none;">
+                    <p>Detailed error logs are available for download:</p>
+                    <a id="download-link" href="#" target="_blank" class="btn-download">Download Error Report (.csv)</a>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
