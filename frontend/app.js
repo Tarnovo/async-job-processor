@@ -1,8 +1,8 @@
 // Base API URL configuration
-// Note: In production, this will point to your ALB/CloudFront domain.
+// Note: In production, this will point to your ALB
 const API_BASE_URL = window.location.origin.includes('localhost')
     ? 'http://localhost:8000'
-    : 'https://api.yourdomain.com'; // Replace with ALB endpoint later
+    : 'async-job-processing-alb-1919681779.eu-central-1.elb.amazonaws.com';
 
 // DOM Element Selectors
 const uploadForm = document.getElementById('upload-form');
