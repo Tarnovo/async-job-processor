@@ -22,3 +22,8 @@ output "cloudfront_domain_name" {
   description = "The domain name of the CloudFront distribution for the frontend"
   value       = aws_cloudfront_distribution.frontend_cdn.domain_name
 }
+
+output "frontend_bucket_name" {
+  description = "The name of the S3 bucket created for hosting the frontend static assets."
+  value       = aws_s3_bucket.frontend_bucket.id
+}

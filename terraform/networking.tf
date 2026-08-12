@@ -209,3 +209,18 @@ resource "aws_vpc_endpoint" "ecr_dkr" {
     Environment = "production"
   }
 }
+
+# CloudWatch Logs Interface Endpoint
+resource "aws_vpc_endpoint" "logs" {
+  vpc_id              = aws_vpc.main.id
+  service_name        = "com.amazonaws.${var.region}.logs"
+  vpc_endpoint_type   = "Interface"
+  security_group_ids  = [aws_security_group.vpc_interface_endpoints_sg.id]
+  subnet_ids          = [aws_subnet.private_1.id, aws_subnet.private_2.id]
+  private_dns_enabled = true
+
+  tags = {
+    Name        = "${var.project_name}-logs-endpoint"
+    Environment = "production"
+  }
+}
