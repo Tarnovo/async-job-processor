@@ -51,10 +51,24 @@ resource "aws_cloudfront_distribution" "frontend_cdn" {
   default_root_object = "index.html"
   comment             = "CDN Distribution for Async Job Platform Frontend"
 
+  # S3 Bucket
   origin {
     domain_name              = aws_s3_bucket.frontend_bucket.bucket_regional_domain_name
     origin_id                = "S3-${aws_s3_bucket.frontend_bucket.id}"
     origin_access_control_id = aws_cloudfront_origin_access_control.frontend_oac.id
+  }
+
+  # ALB
+  origin {
+    domain_name = aws_lb.main.dns_name
+    origin_id   = "ALB-Backend-API"
+
+    custom_origin_config {
+      http_port              = 80
+      https_port             = 443
+      origin_protocol_policy = "http-only"
+      origin_ssl_protocols   = ["TLSv1.2"]
+    }
   }
 
   default_cache_behavior {
@@ -62,12 +76,41 @@ resource "aws_cloudfront_distribution" "frontend_cdn" {
     cached_methods   = ["GET", "HEAD"]
     target_origin_id = "S3-${aws_s3_bucket.frontend_bucket.id}"
 
-
     cache_policy_id = data.aws_cloudfront_cache_policy.caching_optimized.id
 
     viewer_protocol_policy = "redirect-to-https"
     compress               = true
   }
+
+  # /upload path
+  ordered_cache_behavior {
+    path_pattern     = "/upload"
+    target_origin_id = "ALB-Backend-API"
+
+    allowed_methods = ["DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT"]
+    cached_methods  = ["GET", "HEAD"]
+
+
+    cache_policy_id          = "41353a9d-163b-43a3-a921-357068484322" # CachingDisabled Policy for API requests
+    origin_request_policy_id = "b689b0a8-53d0-40ab-baf2-68738e296607" # AllViewerExceptHostHeader
+
+    viewer_protocol_policy = "redirect-to-https"
+  }
+
+  # /jobs/* path
+  ordered_cache_behavior {
+    path_pattern     = "/jobs/*"
+    target_origin_id = "ALB-Backend-API"
+
+    allowed_methods = ["DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT"]
+    cached_methods  = ["GET", "HEAD"]
+
+    cache_policy_id          = "41353a9d-163b-43a3-a921-357068484322"
+    origin_request_policy_id = "b689b0a8-53d0-40ab-baf2-68738e296607"
+
+    viewer_protocol_policy = "redirect-to-https"
+  }
+
 
   price_class = "PriceClass_100" # Use only NA and EU edge locations for cost optimization
 
