@@ -2,8 +2,12 @@ import time
 import boto3
 from botocore.exceptions import ClientError
 from dotenv import load_dotenv
-from mypy_boto3_s3 import S3Client
-from mypy_boto3_sqs import SQSClient
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from mypy_boto3_s3 import S3Client
+    from mypy_boto3_sqs import SQSClient
+
 import json
 from app.worker.employee_processor import process_csv
 import io

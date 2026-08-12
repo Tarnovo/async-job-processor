@@ -5,10 +5,14 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 import uuid
+from typing import TYPE_CHECKING
 import boto3
-from botocore.config import Config 
-from mypy_boto3_s3 import S3Client
-from mypy_boto3_sqs import SQSClient
+from botocore.config import Config
+
+if TYPE_CHECKING:
+    from mypy_boto3_s3 import S3Client
+    from mypy_boto3_sqs import SQSClient
+
 import json
 from app.core.models import (
     JobCreatedResponse,
