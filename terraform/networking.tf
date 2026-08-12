@@ -179,3 +179,33 @@ resource "aws_vpc_endpoint" "secretsmanager" {
     Environment = "production"
   }
 }
+
+# ECR API Interface Endpoint (Authentication & Token)
+resource "aws_vpc_endpoint" "ecr_api" {
+  vpc_id              = aws_vpc.main.id
+  service_name        = "com.amazonaws.${var.region}.ecr.api"
+  vpc_endpoint_type   = "Interface"
+  security_group_ids  = [aws_security_group.vpc_interface_endpoints_sg.id]
+  subnet_ids          = [aws_subnet.private_1.id, aws_subnet.private_2.id]
+  private_dns_enabled = true
+
+  tags = {
+    Name        = "${var.project_name}-ecr-api-endpoint"
+    Environment = "production"
+  }
+}
+
+# ECR DKR Interface Endpoint (Docker Pull Operations)
+resource "aws_vpc_endpoint" "ecr_dkr" {
+  vpc_id              = aws_vpc.main.id
+  service_name        = "com.amazonaws.${var.region}.ecr.dkr"
+  vpc_endpoint_type   = "Interface"
+  security_group_ids  = [aws_security_group.vpc_interface_endpoints_sg.id]
+  subnet_ids          = [aws_subnet.private_1.id, aws_subnet.private_2.id]
+  private_dns_enabled = true
+
+  tags = {
+    Name        = "${var.project_name}-ecr-dkr-endpoint"
+    Environment = "production"
+  }
+}
