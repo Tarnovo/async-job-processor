@@ -59,3 +59,7 @@ jobs:
         run: |
           aws ecs update-service --cluster $ECS_CLUSTER_NAME --service $ECS_FASTAPI_SERVICE --force-new-deployment
           aws ecs update-service --cluster $ECS_CLUSTER_NAME --service $ECS_WORKER_SERVICE --force-new-deployment
+
+      - name: Sync Frontend to S3 Bucket 
+        run: |
+          aws s3 sync ./frontend s3://${{ vars.FRONTEND_BUCKET_NAME }} --delete  
