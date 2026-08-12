@@ -44,6 +44,16 @@ data "aws_cloudfront_cache_policy" "caching_optimized" {
   name = "Managed-CachingOptimized"
 }
 
+# AWS Managed "CachingDisabled" Policy
+data "aws_cloudfront_cache_policy" "caching_disabled" {
+  name = "Managed-CachingDisabled"
+}
+
+# AWS Managed "AllViewerExceptHostHeader" Policy
+data "aws_cloudfront_origin_request_policy" "all_viewer_except_host_header" {
+  name = "Managed-AllViewerExceptHostHeader"
+}
+
 # CloudFront Distribution (CDN)
 resource "aws_cloudfront_distribution" "frontend_cdn" {
   enabled             = true
@@ -91,8 +101,8 @@ resource "aws_cloudfront_distribution" "frontend_cdn" {
     cached_methods  = ["GET", "HEAD"]
 
 
-    cache_policy_id          = "41353a9d-163b-43a3-a921-357068484322" # CachingDisabled Policy for API requests
-    origin_request_policy_id = "b689b0a8-53d0-40ab-baf2-68738e296607" # AllViewerExceptHostHeader
+    cache_policy_id          = data.aws_cloudfront_cache_policy.caching_disabled.id                       # CachingDisabled Policy for API requests
+    origin_request_policy_id = data.aws_cloudfront_origin_request_policy.all_viewer_except_host_header.id # AllViewerExceptHostHeader
 
     viewer_protocol_policy = "redirect-to-https"
   }
@@ -105,8 +115,8 @@ resource "aws_cloudfront_distribution" "frontend_cdn" {
     allowed_methods = ["DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT"]
     cached_methods  = ["GET", "HEAD"]
 
-    cache_policy_id          = "41353a9d-163b-43a3-a921-357068484322"
-    origin_request_policy_id = "b689b0a8-53d0-40ab-baf2-68738e296607"
+    cache_policy_id          = data.aws_cloudfront_cache_policy.caching_disabled.id
+    origin_request_policy_id = data.aws_cloudfront_origin_request_policy.all_viewer_except_host_header.id
 
     viewer_protocol_policy = "redirect-to-https"
   }
