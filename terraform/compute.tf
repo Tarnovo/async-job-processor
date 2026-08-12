@@ -549,11 +549,13 @@ resource "aws_iam_policy" "github_actions_policy" {
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
+      # ECR Authentication
       {
         Effect   = "Allow"
         Action   = "ecr:GetAuthorizationToken",
         Resource = "*"
       },
+      # ECR Image Push Permissions
       {
         Effect = "Allow"
         Action = [
@@ -570,6 +572,7 @@ resource "aws_iam_policy" "github_actions_policy" {
           aws_ecr_repository.worker.arn
         ]
       },
+      # ECS Service Deployment Permissions
       {
         Effect = "Allow"
         Action = [
@@ -579,6 +582,28 @@ resource "aws_iam_policy" "github_actions_policy" {
         Resource = [
           aws_ecs_service.fastapi_service.id,
           aws_ecs_service.worker_service.id
+        ]
+      },
+      # S3 Bucket Level Permissions (Listing for Sync)
+      {
+        Effect = "Allow"
+        Action = [
+          "s3:ListBucket"
+        ]
+        Resource = [
+          aws_s3_bucket.frontend_bucket.arn
+        ]
+      },
+      # S3 Object Level Permissions (Upload, Delete for Sync)
+      {
+        Effect = "Allow"
+        Action = [
+          "s3:PutObject",
+          "s3:GetObject",
+          "s3:DeleteObject"
+        ]
+        Resource = [
+          "${aws_s3_bucket.frontend_bucket.arn}/*"
         ]
       }
     ]
