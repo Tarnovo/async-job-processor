@@ -1,6 +1,7 @@
 # S3 Bucket for Storing Frontend Static Assets
 resource "aws_s3_bucket" "frontend_bucket" {
-  bucket = "${var.project_name}-frontend-${var.region}"
+  bucket        = "${var.project_name}-frontend-${var.region}"
+  force_destroy = true
 
   tags = {
     Name        = "${var.project_name}-frontend"

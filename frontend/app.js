@@ -1,5 +1,4 @@
 // Base API URL configuration
-// Note: In production, this will point to your ALB
 const API_BASE_URL = window.location.origin.includes('localhost')
     ? 'http://localhost:8000'
     : '';

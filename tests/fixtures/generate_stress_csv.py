@@ -2,7 +2,7 @@ import csv
 import random
 
 def generate_huge_csv(filename="stress_test_10k.csv", num_rows=10000):
-    # Bizim employee_processor'ın beklediği kolonlar
+    # Columns expected by our employee_processor
     fieldnames = ["name", "age", "email", "department"]
     departments = ["Engineering", "HR", "Marketing", "Sales", "Finance"]
     
@@ -11,8 +11,8 @@ def generate_huge_csv(filename="stress_test_10k.csv", num_rows=10000):
         writer.writeheader()
         
         for i in range(num_rows):
-            # Arada bilerek "hatalı/invalid" satırlar serpiştiriyoruz ki S3'e sonuçları yazma mantığı da test edilsin
-            # Her 100 satırda bir yaşı eksi veya geçersiz yapalım
+            # Intentionally sprinkling "invalid" rows every 100 iterations 
+            # to test the error handling and result generation logic in S3
             if i % 100 == 0:
                 age = random.choice([-5, "invalid_age", 150])
             else:
@@ -24,7 +24,7 @@ def generate_huge_csv(filename="stress_test_10k.csv", num_rows=10000):
                 "email": f"employee_{i}@shadowcompany.com",
                 "department": random.choice(departments)
             })
-    print(f"🔥 Devasa test dosyası başarıyla üretildi: {filename} ({num_rows} satır)")
+    print(f"Huge test file successfully generated: {filename} ({num_rows} rows)")
 
 if __name__ == "__main__":
     generate_huge_csv()
