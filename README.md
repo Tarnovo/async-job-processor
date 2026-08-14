@@ -1,4 +1,4 @@
-Terraform-Provisioned Containerized Async CSV Processing Platform
+# Terraform-Provisioned Containerized Async CSV Processing Platform
 
 A containerized data processing platform fully provisioned via Terraform on AWS, deploying ECS Fargate and PostgreSQL (RDS) within private subnets, and leveraging SQS & S3 via VPC Endpoints to execute background CSV parsing jobs asynchronously without blocking web requests.
 
@@ -71,6 +71,7 @@ flowchart TD
 * **Unified Pipeline Execution (`deploy.yml`):**
   * **Frontend Ingress Deployment:** Synchronizes web interface assets to the private Frontend S3 Bucket and triggers a CloudFront cache invalidation (`/*`) to ensure instant global asset updates.
   * **Container Image Delivery:** Builds and tags production Docker images for both `FastAPI` and `Worker` services, pushes them to their respective Amazon ECR repositories, and triggers rolling updates via `aws ecs update-service --force-new-deployment`.
+  
   > **Note about separating workflows**
   > I could have separated the frontend and backend GitHub Actions workflows, but decided against it for the scope of this project. However, for more comprehensive enterprise projects where frontend and backend are continuously updated, decoupling these workflows would be the more reasonable approach.
 
@@ -81,3 +82,49 @@ flowchart TD
 * **Declarative Infrastructure via Terraform:** All network boundaries (VPC, Subnets, Route Tables), compute configurations (ECS Cluster, Task Definitions, Services), security policies (IAM Roles, Policies), and data stores (S3, RDS PostgreSQL, SQS) are provisioned declaratively via Terraform.
 * **Least-Privilege Attack Surface Management:** Infrastructure provisioning is maintained through local, authenticated Terraform workflows rather than delegating broad administrative permissions to external CI/CD runners. The GitHub Actions IAM role is strictly scoped to container image delivery and ECS deployment triggers, significantly reducing the external attack surface.
 * **Zero-Trust Network Topology:** No NAT Gateway is provisioned, avoiding unnecessary baseline cloud costs while enforcing strict network isolation. All inter-service communications for private compute workloads are routed through dedicated AWS VPC Endpoints (PrivateLink & Gateway Endpoints).
+
+### 6. Repository Structure & Modular Hierarchy
+
+The codebase is organized as a decoupled monorepo, strictly separating Infrastructure as Code, decoupled containerized application runtimes, local cloud emulation harnesses, and automated testing suites:
+
+```text
+.
+├── .github/
+│   └── workflows/
+│       └── deploy.yml              # Keyless OIDC CI/CD deployment pipeline for AWS ECS, S3 & CDN
+├── app/
+│   ├── core/                       # Shared internal domain logic & database connectivity
+│   │   ├── database.py             # Database engine setup & connection pooling
+│   │   ├── exceptions.py           # Custom platform exception declarations
+│   │   └── models.py               # Pydantic domain schemas & API data transfer objects (DTOs)
+│   ├── fastapi/                    # Ingress API service runtime
+│   │   ├── Dockerfile              # Multi-stage container build definition for FastAPI
+│   │   └── main.py                 # API endpoints for file uploads, job status polling & presigned URLs
+│   └── worker/                     # Asynchronous background processing worker runtime
+│       ├── Dockerfile              # Container build definition for the queue worker
+│       ├── employee_processor.py   # Business logic: CSV parsing, schema validation & error isolation
+│       └── worker.py               # SQS consumer loop & job execution lifecycle manager (State transitions)
+├── assets/
+│   └── architecture-diagram.svg    # System architecture diagram & network boundary assets
+├── frontend/                       # Static web interface hosted on private S3 & CloudFront CDN
+│   ├── app.js                      # Client logic for file streaming & periodic job polling
+│   ├── index.html                  # Single-page interface markup
+│   └── styles.css                  # UI styling definitions
+├── scripts/                        # Local cloud emulation & container orchestration
+│   ├── compose.yaml                # Multi-container local environment orchestration
+│   └── init-aws.sh                 # LocalStack bootstrap script (S3 bucket & SQS queue provisioning)
+├── terraform/                      # Declarative Infrastructure as Code (IaC) layer
+│   ├── cdn.tf                      # CloudFront CDN distribution & Origin Access Control (OAC) policies
+│   ├── compute.tf                  # ECS Cluster, Task Definitions, Fargate Services & GitHub OIDC IAM
+│   ├── db.tf                       # RDS PostgreSQL instance, parameter groups & subnet groups
+│   ├── main.tf                     # Provider declarations, AWS region definition, S3 Data Bucket & SQS creation
+│   ├── networking.tf               # VPC, Public/Private Subnets, Route Tables & VPC Endpoints
+│   ├── outputs.tf                  # Exported resource IDs (CloudFront Distribution ID, GitHub Actions Role ARN, etc.)
+│   └── variables.tf                # Input variable declarations 
+├── tests/                          # Validation & load testing suites
+│   ├── generate_stress_csv.py      # High-throughput mock CSV generator script (10k+ records)
+│   └── invalid_employees.csv       # A CSV file containing invalid rows to test the business logic.
+├── .dockerignore                   # Build-context optimization rules excluding non-runtime assets
+├── .gitignore                      # Git exclusion rules for secrets, TF state & virtual environments
+├── requirements-dev.txt            # Local testing, linting, and development dependencies
+└── requirements.txt                # Production container runtime dependencies
