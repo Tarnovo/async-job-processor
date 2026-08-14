@@ -52,15 +52,19 @@ Container tasks operate entirely within isolated private subnets with no interne
 
 The delivery pipeline implements automated continuous integration and continuous deployment via GitHub Actions, designed around least-privilege security principles:
 
-[ Git Push to Main ]
-│
-├──► (OIDC STS AssumeRole) ──► Authenticate to AWS
-│
-├──► [ Container Delivery ] ──► Multi-Stage Docker Build ──► Push to Amazon ECR
-│                                                                  │
-│                                                                  └──► ECS Service Force-New-Deployment
-│
-└──► [ Frontend Delivery ] ──► S3 Sync (Static Assets) ──► CloudFront Cache Invalidation
+```mermaid
+flowchart TD
+    A[Git Push to Main] --> B(OIDC STS AssumeRole: Authenticate to AWS)
+    
+    B --> C[Container Delivery]
+    C --> D[Multi-Stage Docker Build]
+    D --> E[Push to Amazon ECR]
+    E --> F[ECS Service Force-New-Deployment]
+
+    B --> G[Frontend Delivery]
+    G --> H[S3 Sync: Static Assets]
+    H --> I[CloudFront Cache Invalidation]
+```
 
 **Short-Lived Keyless Authentication (OIDC):** The workflow utilizes OpenID Connect (OIDC) to assume an IAM Role via AWS Security Token Service (STS). Static, long-lived AWS Access Keys are completely eliminated from GitHub repository secrets.
 * **Scoped Trust Policy:** The IAM trust relationship strictly validates the identity token issuer (`token.actions.githubusercontent.com`) and restricts access exclusively to this repository subject (`repo:org/repo:*`), mitigating unauthorized lateral movement.
