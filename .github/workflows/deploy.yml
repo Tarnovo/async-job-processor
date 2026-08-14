@@ -63,3 +63,7 @@ jobs:
       - name: Sync Frontend to S3 Bucket 
         run: |
           aws s3 sync ./frontend s3://${{ vars.FRONTEND_BUCKET_NAME }} --delete  
+      
+      - name: Invalidate CloudFront Cache
+        run: |
+          aws cloudfront create-invalidation --distribution-id ${{ vars.CLOUDFRONT_DISTRIBUTION_ID }} --paths "/*"    

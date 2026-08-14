@@ -607,6 +607,16 @@ resource "aws_iam_policy" "github_actions_policy" {
         Resource = [
           "${aws_s3_bucket.frontend_bucket.arn}/*"
         ]
+      },
+      # CloudFront Create Invalidation Permission
+      {
+        Effect = "Allow"
+        Action = [
+          "cloudfront:CreateInvalidation"
+        ]
+        Resource = [
+          "${aws_cloudfront_distribution.frontend_cdn.arn}"
+        ]
       }
     ]
   })
