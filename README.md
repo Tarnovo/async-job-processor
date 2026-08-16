@@ -156,25 +156,36 @@ aws sso login --profile default
 
 # Verify authenticated identity and temporary session
 aws sts get-caller-identity
-
+```
 
 #### Step 2: Infrastructure Provisioning (Terraform)
 
+
 1. **Navigate to the Terraform Root:**
+```bash
    cd terraform
+```
 2. **Initialize Provider Plugins:**
+```bash
    terraform init
+```
 3. **Configure Terraform Variables (terraform.tfvars):**
+```bash
    project_name  = "your-project-name"
    region        = "your-region"
    db_username   = "your-db-user"
    alert_email   = "your-email@example.com"
    github_repo   = "your-username/your-repo-name"
+```
 4. **Review Execution Plan & Apply:**
+```bash
    terraform plan
-   terraform apply 
+   terraform apply
+```
 5. **Capture Output Values:**
+```bash
    terraform output
+```
 
 #### Step 3: Automated Database Initialization (Lifespan Hook)
 
@@ -204,11 +215,13 @@ Map the captured Terraform outputs into your GitHub repository settings under Se
 
 Commit and push your changes to the main branch to trigger the end-to-end continuous deployment workflow:
 
+```bash
 git add .
 git commit -m "feat: trigger initial production deployment"
 git push origin main
+```
 
-Pipeline Execution Lifecycle:
+##### Pipeline Execution Lifecycle:
 
     1- OIDC Authentication: GitHub Actions assumes the scoped IAM role via AWS STS without long-lived access keys.
 
@@ -222,7 +235,8 @@ Pipeline Execution Lifecycle:
 
 Once the deployment workflow completes successfully, retrieve the live application URL from Terraform:
 
+```bash
 terraform output cloudfront_domain_name
+```
 
 Open the returned CloudFront domain name in your browser to access the live, edge-accelerated web interface.
-```
