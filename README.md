@@ -191,11 +191,11 @@ aws sts get-caller-identity
 
 The PostgreSQL database schema is automatically managed by the application lifecycle:
 
-    During task bootstrap on ECS Fargate, FastAPI's @asynccontextmanager lifespan handler triggers init_db().
+* During task bootstrap on ECS Fargate, FastAPI's @asynccontextmanager lifespan handler triggers init_db().
 
-    It executes CREATE TABLE IF NOT EXISTS jobs (...) and required schema alters over the internal RDS connection prior to accepting ingress HTTP traffic.
+* It executes CREATE TABLE IF NOT EXISTS jobs (...) and required schema alters over the internal RDS connection prior to accepting ingress HTTP traffic.
 
-    No manual SQL provisioning or bastion host access is required.
+* No manual SQL provisioning or bastion host access is required.
 
 #### Step 4: CI/CD Pipeline & OIDC Setup (GitHub Actions)
 
@@ -223,13 +223,13 @@ git push origin main
 
 ##### Pipeline Execution Lifecycle:
 
-    1- OIDC Authentication: GitHub Actions assumes the scoped IAM role via AWS STS without long-lived access keys.
+* OIDC Authentication: GitHub Actions assumes the scoped IAM role via AWS STS without long-lived access keys.
 
-    2- Container Build & Registry Ingestion: Builds FastAPI and Worker container images, tagging them with the commit SHA and latest, then pushes them to Amazon ECR.
+* Container Build & Registry Ingestion: Builds FastAPI and Worker container images, tagging them with the commit SHA and latest, then pushes them to Amazon ECR.
 
-    3- ECS Rolling Deployment: Executes aws ecs update-service --force-new-deployment to trigger zero-downtime task replacements on ECS Fargate.
+* ECS Rolling Deployment: Executes aws ecs update-service --force-new-deployment to trigger zero-downtime task replacements on ECS Fargate.
 
-    4- Static Delivery & CDN Invalidation: Synchronizes ./frontend static assets to the private S3 bucket with --delete and triggers a CloudFront edge cache invalidation (/*).
+* Static Delivery & CDN Invalidation: Synchronizes ./frontend static assets to the private S3 bucket with --delete and triggers a CloudFront edge cache invalidation (/*).
 
 #### Step 6: Verification & Production Access
 
