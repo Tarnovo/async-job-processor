@@ -125,7 +125,7 @@ The codebase is organized as a decoupled monorepo, strictly separating Infrastru
 ├── .gitignore                      # Git exclusion rules for secrets, TF state & virtual environments
 ├── requirements-dev.txt            # Local testing, linting, and development dependencies
 └── requirements.txt                # Production container runtime dependencies
-
+```
 
 ### 7. Local Cloud Emulation & Engineering Methodology
 
@@ -134,3 +134,91 @@ During the initial engineering and verification lifecycle, the decoupled archite
 * **Local Cloud Emulation (LocalStack):** S3 bucket operations and SQS asynchronous message polling routines were decoupled from live AWS infrastructure during the prototyping phase using LocalStack. This mitigated unnecessary cloud billing and enabled rapid offline iteration.
 * **Service Contract Validation:** The integration contracts between the FastAPI ingestion endpoints, the SQS message schema, and the background Worker state machine were asserted against local mock endpoints (`AWS_ENDPOINT_URL`-> `http://localstack:4566`) before committing infrastructure definitions to Terraform.
 * **Production-Only Repository Artifacts:** To maintain a clean and production-grade codebase, local orchestration scripts and ephemeral test mocks were excluded from the deployment artifacts. The platform strictly targets fully managed, declarative AWS infrastructure provisioned via Terraform.
+
+
+### 8. Production Deployment Guide
+
+Follow this operational guide to provision the complete AWS infrastructure via Terraform and establish automated continuous deployment using GitHub Actions.
+
+#### Prerequisites & Tooling
+* **AWS CLI (v2+)** configured with administrative IAM credentials (`aws configure`).
+* **Terraform CLI (v1.5+)** installed locally.
+* **Git** and an active GitHub repository.
+
+---
+
+#### Step 1: AWS SSO Authentication
+Authenticate your local terminal session using AWS IAM Identity Center (SSO) to obtain short-lived credentials without exposing long-lived access keys:
+##### Initiate browser-based SSO login
+aws sso login --profile default
+
+##### Verify authenticated identity and temporary session
+aws sts get-caller-identity
+
+#### Step 2: Infrastructure Provisioning (Terraform)
+
+1. **Navigate to the Terraform Root:**
+   cd terraform
+2. **Initialize Provider Plugins:**
+   terraform init
+3. **Configure Terraform Variables (terraform.tfvars):**
+   project_name  = "your-project-name"
+   region        = "your-region"
+   db_username   = "your-db-user"
+   alert_email   = "your-email@example.com"
+   github_repo   = "your-username/your-repo-name"
+4. **Review Execution Plan & Apply:**
+   terraform plan
+   terraform apply 
+5. **Capture Output Values:**
+   terraform output
+
+#### Step 3: Automated Database Initialization (Lifespan Hook)
+
+The PostgreSQL database schema is automatically managed by the application lifecycle:
+
+    During task bootstrap on ECS Fargate, FastAPI's @asynccontextmanager lifespan handler triggers init_db().
+
+    It executes CREATE TABLE IF NOT EXISTS jobs (...) and required schema alters over the internal RDS connection prior to accepting ingress HTTP traffic.
+
+    No manual SQL provisioning or bastion host access is required.
+
+#### Step 4: CI/CD Pipeline & OIDC Setup (GitHub Actions)
+
+Map the captured Terraform outputs into your GitHub repository settings under Settings > Secrets and variables > Actions:
+
+| Variable / Secret Key | Source / Terraform Output | Description |
+| :--- | :--- | :--- |
+| `AWS_ROLE_ARN` | `github_actions_role_arn` | IAM Role ARN assumed by GitHub via OIDC STS |
+
+| Variable Name | Source / Terraform Output Mapping | Description |
+| :--- | :--- | :--- |
+| `PROJECT_NAME` | `project_name` variable (e.g., `async-job-processing`) | Base naming prefix for ECR and ECS resources |
+| `FRONTEND_BUCKET_NAME` | `frontend_bucket_name` | Private S3 bucket hosting static web assets |
+| `CLOUDFRONT_DISTRIBUTION_ID` | `cloudfront_distribution_id` | CloudFront Distribution ID for edge cache invalidations |
+
+#### Step 5: Initial Pipeline Execution
+
+Commit and push your changes to the main branch to trigger the end-to-end continuous deployment workflow:
+
+git add .
+git commit -m "feat: trigger initial production deployment"
+git push origin main
+
+Pipeline Execution Lifecycle:
+
+    1- OIDC Authentication: GitHub Actions assumes the scoped IAM role via AWS STS without long-lived access keys.
+
+    2- Container Build & Registry Ingestion: Builds FastAPI and Worker container images, tagging them with the commit SHA and latest, then pushes them to Amazon ECR.
+
+    3- ECS Rolling Deployment: Executes aws ecs update-service --force-new-deployment to trigger zero-downtime task replacements on ECS Fargate.
+
+    4- Static Delivery & CDN Invalidation: Synchronizes ./frontend static assets to the private S3 bucket with --delete and triggers a CloudFront edge cache invalidation (/*).
+
+#### Step 6: Verification & Production Access
+
+Once the deployment workflow completes successfully, retrieve the live application URL from Terraform:
+
+terraform output cloudfront_domain_name
+
+Open the returned CloudFront domain name in your browser to access the live, edge-accelerated web interface.
