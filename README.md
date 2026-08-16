@@ -149,11 +149,14 @@ Follow this operational guide to provision the complete AWS infrastructure via T
 
 #### Step 1: AWS SSO Authentication
 Authenticate your local terminal session using AWS IAM Identity Center (SSO) to obtain short-lived credentials without exposing long-lived access keys:
-##### Initiate browser-based SSO login
+
+```bash
+# Initiate browser-based SSO login
 aws sso login --profile default
 
-##### Verify authenticated identity and temporary session
+# Verify authenticated identity and temporary session
 aws sts get-caller-identity
+```
 
 #### Step 2: Infrastructure Provisioning (Terraform)
 
