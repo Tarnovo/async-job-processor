@@ -156,7 +156,7 @@ aws sso login --profile default
 
 # Verify authenticated identity and temporary session
 aws sts get-caller-identity
-```
+
 
 #### Step 2: Infrastructure Provisioning (Terraform)
 
@@ -225,3 +225,4 @@ Once the deployment workflow completes successfully, retrieve the live applicati
 terraform output cloudfront_domain_name
 
 Open the returned CloudFront domain name in your browser to access the live, edge-accelerated web interface.
+```
