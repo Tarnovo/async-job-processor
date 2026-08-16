@@ -19,6 +19,7 @@ pyvenv.cfg
 
 # Docker & Local Infrastructure Data
 localstack_data/
+scripts/
 
 # IDE & OS Files
 .vscode/

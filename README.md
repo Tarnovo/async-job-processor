@@ -110,9 +110,6 @@ The codebase is organized as a decoupled monorepo, strictly separating Infrastru
 │   ├── app.js                      # Client logic for file streaming & periodic job polling
 │   ├── index.html                  # Single-page interface markup
 │   └── styles.css                  # UI styling definitions
-├── scripts/                        # Local cloud emulation & container orchestration
-│   ├── compose.yaml                # Multi-container local environment orchestration
-│   └── init-aws.sh                 # LocalStack bootstrap script (S3 bucket & SQS queue provisioning)
 ├── terraform/                      # Declarative Infrastructure as Code (IaC) layer
 │   ├── cdn.tf                      # CloudFront CDN distribution & Origin Access Control (OAC) policies
 │   ├── compute.tf                  # ECS Cluster, Task Definitions, Fargate Services & GitHub OIDC IAM
@@ -128,3 +125,12 @@ The codebase is organized as a decoupled monorepo, strictly separating Infrastru
 ├── .gitignore                      # Git exclusion rules for secrets, TF state & virtual environments
 ├── requirements-dev.txt            # Local testing, linting, and development dependencies
 └── requirements.txt                # Production container runtime dependencies
+
+
+### 7. Local Cloud Emulation & Engineering Methodology
+
+During the initial engineering and verification lifecycle, the decoupled architecture was validated locally prior to production cloud provisioning:
+
+* **Local Cloud Emulation (LocalStack):** S3 bucket operations and SQS asynchronous message polling routines were decoupled from live AWS infrastructure during the prototyping phase using LocalStack. This mitigated unnecessary cloud billing and enabled rapid offline iteration.
+* **Service Contract Validation:** The integration contracts between the FastAPI ingestion endpoints, the SQS message schema, and the background Worker state machine were asserted against local mock endpoints (`AWS_ENDPOINT_URL`-> `http://localstack:4566`) before committing infrastructure definitions to Terraform.
+* **Production-Only Repository Artifacts:** To maintain a clean and production-grade codebase, local orchestration scripts and ephemeral test mocks were excluded from the deployment artifacts. The platform strictly targets fully managed, declarative AWS infrastructure provisioned via Terraform.
