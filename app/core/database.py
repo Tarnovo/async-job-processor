@@ -2,6 +2,7 @@ import psycopg2
 import os
 import logging
 from dotenv import load_dotenv
+from contextlib import contextmanager
 
 load_dotenv()
 
@@ -21,7 +22,6 @@ ALTER TABLE jobs ADD COLUMN IF NOT EXISTS invalid_rows_s3_key VARCHAR(255);
 """
 
 def get_db_connection():
-
     return psycopg2.connect(
         host=os.getenv("POSTGRES_HOST", "localhost"),
         database=os.getenv("POSTGRES_DB"),
@@ -29,6 +29,18 @@ def get_db_connection():
         password=os.getenv("POSTGRES_PASSWORD"),
         port=os.getenv("POSTGRES_PORT", "5432")
     )
+
+@contextmanager
+def get_db_cursor():
+
+    conn = get_db_connection()
+
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                yield cur
+    finally:
+        conn.close()
 
 
 def init_db():
