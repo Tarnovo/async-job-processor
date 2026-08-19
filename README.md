@@ -289,3 +289,47 @@ Building a production-ready asynchronous processing platform requires balancing 
   * **Fargate vs. EC2 (Operational Overhead):** Eliminated the operational burden of provisioning EC2 instances, maintaining Auto Scaling Groups, managing host OS security patches, and configuring ECS container agents.
   * **Fargate vs. AWS Lambda (Persistent Long-Polling):** Avoided Lambda's 15-minute execution hard-limit and cold-start latency for background processing. Running a persistent worker loop on Fargate ensures zero cold-start delay upon message ingestion and predictable compute costs.
   * **Container Immutability:** Docker packaging guarantees runtime environment parity across development and production environments, enforcing deterministic execution boundaries.
+
+### 10. Verification, Resilience & Load Testing
+
+To validate the reliability, network isolation, and fault tolerance of the distributed processing platform, the system was subjected to functional, resilience, and high-throughput stress scenarios.
+
+---
+
+### 1. Functional Ingestion & Presigned URL Retrieval (Happy Path)
+* **Execution:** A structured CSV payload containing valid, underage, and invalid format rows (`tests/invalid_employees.csv`) was submitted via the CloudFront web interface.
+* **Verification Points:**
+  * FastAPI streamed the file to the private Data S3 bucket and persisted an initial `PENDING` state to RDS PostgreSQL.
+  * SQS buffered and dispatched the event to the Worker Fargate task via AWS PrivateLink.
+  * The Worker processed all records, uploaded the isolated invalid rows report (`results/{job_id}_invalid_rows.json`) to S3, and transitioned the database state to `COMPLETED`.
+  * The frontend polling loop successfully resolved execution metrics and retrieved a time-limited S3 Presigned URL allowing secure client-side download without public bucket access.
+
+![Happy Path Completed](assets/happy_path_completed.png)
+![Happy Path JSON](assets/presigned_url_invalid_rows_json.png)
+
+
+---
+
+### 2. Poison Payload & Dead-Letter Queue (DLQ) Resilience
+* **Execution:** Simulated unrecoverable application and malformed payload exceptions to test the pipeline's backpressure and fault containment.
+* **Verification Points:**
+  * Messages failing processing were retained in the queue across Visibility Timeout intervals without blocking unrelated queue workloads.
+  * Upon exceeding `maxReceiveCount = 3`, SQS automatically isolated the message into the Dead-Letter Queue (DLQ).
+  * The DLQ transition triggered an Amazon CloudWatch metric alarm and dispatched an automated alert notification via Amazon SNS to the configured operations subscriber.
+
+![DLQ](assets/DLQ.png)
+![CloudWatch Alarm](assets/CloudWatch_alarm.png)
+![SNS email](assets/SNS_email.png)
+
+
+---
+
+### 3. High-Throughput Batch Processing & Memory Profiling (Stress Test)
+* **Execution:** Generated a heavy dataset containing over 10,000+ employee records using `tests/generate_stress_csv.py` and submitted the workload to the production pipeline.
+* **Verification Points:**
+  * **Memory Footprint:** Utilizing Python's `upload_fileobj` streaming and in-memory `io.BytesIO` buffers prevented container memory spikes, keeping Fargate memory utilization well within the provisioned `512 MiB` threshold.
+  * **Visibility Timeout Buffer:** The complete 10,000-record batch execution completed well within the 300-second SQS Visibility Timeout window, ensuring zero duplicate processing or unneeded message re-deliveries.
+
+![Stress Test Completed](assets/stress_test_completed.png)
+![Stress Test JSON](assets/stress_test_invalid_json.png)
+![Stress Test Memory & CPU Utilization](assets/stress_test_memcpu_util.png)
