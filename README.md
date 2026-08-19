@@ -296,7 +296,7 @@ To validate the reliability, network isolation, and fault tolerance of the distr
 
 ---
 
-### 1. Functional Ingestion & Presigned URL Retrieval (Happy Path)
+#### 1. Functional Ingestion & Presigned URL Retrieval (Happy Path)
 * **Execution:** A structured CSV payload containing valid, underage, and invalid format rows (`tests/invalid_employees.csv`) was submitted via the CloudFront web interface.
 * **Verification Points:**
   * FastAPI streamed the file to the private Data S3 bucket and persisted an initial `PENDING` state to RDS PostgreSQL.
@@ -310,7 +310,7 @@ To validate the reliability, network isolation, and fault tolerance of the distr
 
 ---
 
-### 2. Poison Payload & Dead-Letter Queue (DLQ) Resilience
+#### 2. Poison Payload & Dead-Letter Queue (DLQ) Resilience
 * **Execution:** Simulated unrecoverable application and malformed payload exceptions to test the pipeline's backpressure and fault containment.
 * **Verification Points:**
   * Messages failing processing were retained in the queue across Visibility Timeout intervals without blocking unrelated queue workloads.
@@ -324,7 +324,7 @@ To validate the reliability, network isolation, and fault tolerance of the distr
 
 ---
 
-### 3. High-Throughput Batch Processing & Memory Profiling (Stress Test)
+#### 3. High-Throughput Batch Processing & Memory Profiling (Stress Test)
 * **Execution:** Generated a heavy dataset containing over 10,000+ employee records using `tests/generate_stress_csv.py` and submitted the workload to the production pipeline.
 * **Verification Points:**
   * **Memory Footprint:** Utilizing Python's `upload_fileobj` streaming and in-memory `io.BytesIO` buffers prevented container memory spikes, keeping Fargate memory utilization well within the provisioned `512 MiB` threshold.
@@ -333,3 +333,14 @@ To validate the reliability, network isolation, and fault tolerance of the distr
 ![Stress Test Completed](assets/stress_test_completed.png)
 ![Stress Test JSON](assets/stress_test_invalid_json.png)
 ![Stress Test Memory & CPU Utilization](assets/stress_test_memcpu_util.png)
+
+---
+
+### 11. Clean-Up & Teardown
+
+To avoid incurring ongoing AWS infrastructure charges after evaluation, destroy all provisioned cloud resources via the local Terraform CLI:
+
+```bash
+cd terraform
+terraform destroy 
+```
