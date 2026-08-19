@@ -2,6 +2,9 @@
 
 A containerized data processing platform fully provisioned via Terraform on AWS, deploying ECS Fargate and PostgreSQL (RDS) within private subnets, and leveraging SQS & S3 via VPC Endpoints to execute background CSV parsing jobs asynchronously without blocking web requests.
 
+> **Engineering Statement & Core Purpose:**  
+> The primary objective of this project is not merely the application layer of parsing CSV rows, but the end-to-end design, implementation, and operational governance of a **production-grade AWS Cloud Infrastructure**. The asynchronous CSV processing workload serves as a real-world vehicle to master and demonstrate core cloud engineering competencies: Infrastructure as Code (IaC) with Terraform, cloud-native backend and asynchronous worker runtimes in Python (FastAPI, boto3), network-isolated container orchestration (ECS Fargate), distributed messaging resilience (SQS/DLQ), and keyless identity federation (OIDC).
+
 ## System Architecture & Execution Lifecycle
 
 ![System Architecture](assets/architecture-diagram.svg)
@@ -240,3 +243,49 @@ terraform output cloudfront_domain_name
 ```
 
 Open the returned CloudFront domain name in your browser to access the live, edge-accelerated web interface.
+
+### 9. Key Architectural Decisions, Trade-Offs & Troubleshooting
+
+Building a production-ready asynchronous processing platform requires balancing security, operational overhead, network isolation, and infrastructure cost. Below are the core engineering decisions, real-world trade-offs, and failure mode mitigations implemented across the platform:
+
+---
+
+#### 1. Edge-Terminated TLS vs. Custom Domain Cost Optimization
+* **Challenge & Trade-Off:** Attaching a custom ACM SSL/TLS certificate to the Application Load Balancer (ALB) requires registering a public domain and managing a dedicated Amazon Route 53 Hosted Zone, introducing unnecessary baseline costs for this infrastructure prototype.
+* **Engineering Resolution:** TLS termination is performed at the CloudFront Edge distribution layer using default AWS wildcard certificates. Communication between CloudFront and the public ALB origin is routed over HTTP across the internal AWS Global Backbone Network. Because this traffic is confined to AWS-managed network infrastructure and never traverses the public internet, it maintains high transport security without recurring domain overhead.
+
+---
+
+#### 2. Zero-Egress Network Isolation: VPC Endpoints vs. NAT Gateway
+* **Challenge & Trade-Off:** Provisioning a NAT Gateway to grant internet access to private subnets incurs hourly baseline charges, data processing fees, and exposes internal workloads to public egress routes.
+* **Engineering Resolution:** The architecture completely eliminates NAT Gateways. All ECS Fargate tasks run in strictly isolated private subnets. Complete inter-service communication is achieved via dedicated AWS VPC Endpoints:
+  * **Gateway Endpoint:** Amazon S3 (configured via Private Route Tables) for high-throughput raw CSV ingestion and Docker image layer retrieval.
+  * **Interface Endpoints (AWS PrivateLink):** Dedicated Elastic Network Interfaces (ENIs) for `ecr.api`, `ecr.dkr`, `sqs`, `secretsmanager`, and `logs` (CloudWatch).
+* **Troubleshooting:** The initial ECS task deployments failed with (`CannotPullContainerError`). The issue was subsequently resolved by adding interface VPC endpoints for services such as ecr.dkr, ecr.api, and sqs.
+
+---
+
+#### 3. Distributed Idempotency Guard (SQS At-Least-Once Delivery)
+* **Challenge & Failure Mode:** Standard SQS queues operate under an *at-least-once delivery* model. If a worker completes batch processing but encounters a database timeout or network blip before deleting the message, or if compute time exceeds the Visibility Timeout, the message re-appears in the queue. Without safeguards, this causes duplicate executions and overwrites processed S3 datasets.
+* **Engineering Resolution:** Implemented an Idempotency Guard in the Worker runtime. Before executing CSV parsing routines, the worker queries PostgreSQL:
+  ```sql
+  SELECT status FROM jobs WHERE job_id = %s;
+  ```
+  If the state is already marked as COMPLETED, the worker skips compute steps entirely, immediately deletes the SQS message via sqs_client.delete_message, and safely moves to the next message.
+
+#### 4. Startup Race Condition Mitigation via FastAPI Lifespan Hooks
+
+* **Challenge & Failure Mode:** In containerized deployments on ECS Fargate, application runtimes can start listening on ingress ports before the underlying PostgreSQL database completes initialization, leading to unhandled connection exceptions (500 Internal Server Error) or container crash loops (CrashLoopBackOff).
+* **Engineering Resolution:** Implemented FastAPI's @asynccontextmanager lifespan handler in main.py. The initialization hook executes init_db() (running CREATE TABLE IF NOT EXISTS jobs) and verifies database connectivity before the ASGI server opens port 8000 to ALB health checks. This guarantees deterministic startup ordering without requiring manual database migration runs.
+
+#### 5. Keyless Identity Federation: OpenID Connect (OIDC) vs. Static IAM Access Keys
+
+* **Security Risk:** Long-lived IAM Access Keys (AKIA...) stored in CI/CD platforms present severe security liabilities. AWS limits IAM users to a maximum of 2 active access keys, making manual key rotation across multiple pipelines error-prone, labor-intensive, and hazardous during compromised credential recovery.
+* **Engineering Resolution:** Configured OpenID Connect (OIDC) federation between GitHub Actions and AWS Security Token Service (STS). The deployment workflow uses AssumeRoleWithWebIdentity to exchange temporary JWT tokens for short-lived AWS STS session credentials (ASIA...). This eliminates static secrets entirely, scopes access strictly to repository subject claims (repo:org/repo:*), and streamlines automated access governance.
+
+#### 6. Compute Strategy: ECS Fargate vs. EC2 vs. Serverless Lambda
+* **Challenge & Trade-Off:** The platform requires both an HTTP ingestion API and a persistent background worker executing continuous SQS long-polling routines.
+* **Engineering Resolution:** Selected AWS ECS Fargate as the unified serverless container runtime:
+  * **Fargate vs. EC2 (Operational Overhead):** Eliminated the operational burden of provisioning EC2 instances, maintaining Auto Scaling Groups, managing host OS security patches, and configuring ECS container agents.
+  * **Fargate vs. AWS Lambda (Persistent Long-Polling):** Avoided Lambda's 15-minute execution hard-limit and cold-start latency for background processing. Running a persistent worker loop on Fargate ensures zero cold-start delay upon message ingestion and predictable compute costs.
+  * **Container Immutability:** Docker packaging guarantees runtime environment parity across development and production environments, enforcing deterministic execution boundaries.
